@@ -1,0 +1,139 @@
+//KC03NEBU JOB ,'EDGAR SIAS',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+************************************************************
+*
+*  Program:     ASSIGN3
+*  Programmer:  EDGAR SIAS
+*
+*  Register usage:
+*     2    Used for multiplication, division calculations
+*     3    Holds the value for multiplication, division products
+*     4    Holds the loop counter/total employees
+*     5    Holds the overtime counter
+*     6    Holds the total net pay, average net pay at end
+*     7    Used as a middleman for arithmetic operations
+*     8    Used as a middleman for arithmetic operations
+*     9    Holds Employee ID
+*     10   Holds Wage of employee
+*     11   Holds hours worked by employee
+*     12   Holds deduction from employee's pay
+*     13   Holds employee bonuses
+*
+************************************************************
+MAIN     CSECT
+         USING MAIN,15           BEGIN PROGRAM
+         TITLE 'EDGAR SIAS,CSCI 360, PROGRAM 3'
+         SR    4,4               INITIALIZE WHILE LOOP COUNTER
+         SR    5,5               INITIALIZE OVERTIME COUNTER
+         SR    6,6               INITIALIZE TOTAL NET PAY
+         XPRNT NAME,50           PRINT TOP TITLE
+         XPRNT TOP,90            PRINT FIRST HALF OF LABELS
+         XPRNT HEADLINE,84       PRINT SECOND HALF OF LABELS
+WHILE    XREAD CARD,80           READ A LINE
+         BC    B'0100',ENDWHILE  IF END OF LINE, EXIT LOOP
+         XDECI 9,CARD            GET EMPLOYEE ID FROM CARD
+         XDECI 10,0(1)           GET WAGE FROM CARD
+         XDECI 11,0(1)           GET HOURS WORKED FROM CARD
+         XDECI 12,0(1)           GET DEDUCTION FROM CARD
+         XDECI 13,0(1)           GET BONUS FROM CARD
+         XDECO 9,EMPID           PREPARE EMPLOYEE ID FOR PRINTING
+         XDECO 10,WAGE           PREPARE WAGE FOR PRINTING
+         XDECO 11,HOURS          PREPARE HOURS WORKED FOR PRINTING
+         XDECO 12,DEDUCT         PREPARE DEDUCTION FOR PRINTING
+         XDECO 13,BONUS          PREPARE BONUS FOR PRINTING
+*
+         C     11,FULLTM         COMPARE HOURS TO 40
+         BC    B'0010',IFMORE    IF > 40, GO TO IFMORE,
+IFLESS   LR    3,10              SET R3 TO WAGE
+         MR    2,11              Hourly Wage * Hours Worked
+         ST    3,GROSS           STORE PRODUCT INTO GROSS
+         BC    B'1111',PRINT     GO TO PRINT
+IFMORE   A     5,ONE             OVERTIME COUNTER
+         LR    3,11              SET R3 TO HOURS
+         M     2,=F'2'           2 * Number of Hours Worked
+         S     3,FULLTM          product- 40
+         LR    8,10              SET R8 TO WAGE
+         MR    2,8               Hourly Wage * product
+         ST    3,GROSS           STORE PRODUCT INTO GROSS
+         BC    B'1111',PRINT     GO TO PRINT
+PRINT    LR    7,13              SET R7 TO BONUS
+         SR    7,12              Bonus - Deduction
+         L     8,GROSS           SET R8 TO GROSS
+         AR    7,8               Gross Pay + product
+         AR    6,7               ADD NET TO NET PAY
+         A     4,ONE             
+         XDECO 8,GROSSP          PREPARE GROSS FOR PRINTING
+         XDECO 7,NETP            PREPARE NET FOR PRINTING
+         XPRNT NUMBERS,85        PRINT DATA C
+         BC    B'1111',WHILE     REPEAT THE LOOP
+ENDWHILE LR    3,6               R3 = TOTAL NET
+         DR    2,4               DIVIDE R3 BY TOTAL EMP
+         LR    7,3               R7 = PRODUCT (R3) 
+         LR    3,2               R3 = REMAINDER (R2)
+         SR    2,2               CLEAR OUT R2
+         M     2,TWO             PRODUCT * 2
+         C     3,4               COMPARE ANSWER, TOT EMPLOYS
+         BC    B'1010',FINISH    IF < TOT EMPLOYS, SKIP NEXT
+ROUND    A     7,ONE             ADD 1 TO AVG NET
+FINISH   LR    6,7               R6 = AVG NET
+         XDECO 4,TOTEMP          PREPARE TOT EMPLOYS FOR PRINTING
+         XDECO 6,AVGNET          PREPARE AVG NET FOR PRINTING
+         XDECO 5,OVRTM           PREPARE OVERTIME NUM FOR PRINTING
+         XPRNT TOT1,52           PRINT TOT EMPLOYEES
+         XPRNT TOT2,55           PRINT AVG NET PAY
+         XPRNT TOT3,51           PRINT NUM OF OVERTIME EMPLOYEES
+         BR    14                
+************************************************************
+FULLTM   DC    F'40'
+ONE      DC    F'1'
+TWO      DC    F'2'
+GROSS    DS    F
+CARD     DS    80C
+NAME     DC    C'0'
+         DC    CL20' '
+         DC    CL30'Payroll Report -- Widgets-R-US'
+TOP      DC    C'0'
+         DC    CL5' '
+         DC    CL12'EMPLOYEE'
+         DC    CL12'  HOURLY'
+         DC    CL12'   HOURS'
+         DC    CL24' '
+         DC    CL12'  GROSS'
+         DC    CL12'   NET'
+HEADLINE DC    C'0'
+         DC    CL6' '
+         DC    CL12'NUMBER'
+         DC    CL12'  WAGE'
+         DC    CL12'  WORKED'
+         DC    CL12'DEDUCTION'
+         DC    CL12'  BONUS'
+         DC    CL12'  PAY'
+         DC    CL12'  PAY'
+NUMBERS  DC    C'0'
+EMPID    DC    CL12' '
+WAGE     DC    CL12' '
+HOURS    DC    CL12' '
+DEDUCT   DC    CL12' '
+BONUS    DC    CL12' '
+GROSSP   DC    CL12' '
+NETP     DC    CL12' '
+TOT1     DC    C'0'
+         DC    CL27'Total number of employees: '
+         DC    CL12' '
+TOTEMP   DC    CL12' '
+TOT2     DC    C'0'
+         DC    CL30'Average net pay per employee: '
+         DC    CL12' '
+AVGNET   DC    CL12' '
+TOT3     DC    C'0'
+         DC    CL38'Number of employees working overtime: '
+OVRTM    DC    CL6' '
+         END MAIN
+/*
+//FT05F001 DD DSN=KC02314.SUMMER14.CSCI360.HW3DATA,DISP=SHR
+//FT06F001 DD SYSOUT=*
+//
+
