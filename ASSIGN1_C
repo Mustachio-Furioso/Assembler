@@ -1,0 +1,38 @@
+//KC03NEBU JOB ,'EDGAR SIAS',MSGCLASS=H       
+//STEP1 EXEC PGM=ASSIST                         
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*                          
+//SYSIN DD *                                                                                           
+***********************************************     
+* ASSIGNMENT 1 PART A                         
+* NAME: EDGAR SIAS                            
+*                                            
+* REGISTER USAGE                              
+*                                            
+*  1     NUM1                                
+*  2     NUM2                              
+*  3     NUM1                                
+*  4     NUM2                                
+* 15     BASE REGISTER                        
+***********************************************
+MAIN     CSECT                                
+         USING MAIN,15                         
+         L     1,44(0,15)        LOADS NUM1 INTO R1 
+         L     2,48(0,15)        LOADS NUM2 INTO R2    
+         SR    1,2               SUBTRACTS R1 BY R2  
+         L     3,44(0,15)        LOADS NUM1 INTO R3 
+         L     4,48(0,15)        LOADS NUM2 INTO R4   
+         AR    3,4               ADDS R3 AND R4      
+         ST    1,52(0,15)        STORES R1 TO RESULT1
+         ST    3,56(0,15)        STORES R3 TO RESULT2      
+         XDUMP 52(0,15),8        XDUMP RESULT1, RESULT2                                    
+         BR    14                             
+***********************************************      
+NUM1     DC    F'174'                              
+NUM2     DC    F'83'
+RESULT1  DS    F
+RESULT2  DS    F
+                                 
+         END   MAIN                                      
+/*
+//

@@ -1,0 +1,574 @@
+//KC03NEBA JOB ,'EDGAR SIAS',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+*********************************************************************
+* CSCI 360     ASSIGNMENT 7      SUMMER 2014      COPYRIGHT (C) 2014
+*                               
+* NAME:        JAQUELYNE SMITH & EDGAR SIAS
+* KID:         KC03NEE         & KC03NEB
+*                                   
+* FUNCTION:    This program program reads a file containing 
+*              information about players: ID numbers, names and three
+*              scores for each person. The information will be stored
+*              in a table. We will print the table. After that, there
+*              will be some transactions to carry out and then we 
+*              will print the table again. The program will make use 
+*              of external subroutines, character data and packed 
+*              decimal numbers.
+*
+* DUE DATE:    July 28, 2014
+*
+* LAST EDIT:   11:28pm 07.28.2014
+*
+* INPUT:       A file with an unknown number of records. Each record
+*              represents a single player in a Greek Myth game.
+*
+* OUTPUT:      An entire table and the table again after some
+*              transactions.
+*
+* ENTRY CONDS: None.
+*
+* EXIT CONDS:  None.
+*
+* REGISTER USAGE:
+*
+*              1     Used by XDECI, parameter list
+*              2     @ of TABLE
+*              3     @ of ENDTABLE, @ of LAST ENTRY
+*              4     Current number from card
+*              5     Used for dividing/multiplying purposes, BUFFER
+*              7     Counter for nums on print line
+*              8     @ of print line
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used to BALR to BUILD, PRINT, & TRANS
+*             15     Base register   
+*
+* NOTES:      None.
+*********************************************************************
+*                               Main
+*********************************************************************
+MAIN     CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING MAIN,12               r       k
+         LA    14,MAINSAVE            y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+         TITLE 'EDGAR SIAS, CSCI 360, PROGRAM 7'
+*
+* Call external subroutines
+*
+         LA    R1,PARM1
+         L     R15,=V(BUILD)
+         BALR  R14,R15            Branch to build
+***********************************************************
+         LA    R1,PARM2
+         L     R15,=V(PRINT)
+         BALR  R14,R15            Branch to print
+***********************************************************
+         LA    R1,PARM4
+         L     R15,=V(TRANS)
+         BALR  R14,R15            Branch to trans
+***********************************************************
+         LA    R1,PARM3
+         L     R15,=V(PRINT)
+         BALR  R14,R15            Branch to print
+***********************************************************
+         L     R13,4(,R13)        E
+         LM    R14,R12,12(13)      x
+         BR    R14                  i
+*                                    t Linkage
+*********************************************************************
+*                           Main storage
+*********************************************************************
+         LTORG
+MAINSAVE DS    18F
+*
+* Magically align your table on a 32-byte boundary.
+*
+         ORG   MAIN+(((*-MAIN+31)/32)*32)
+TABLE    DC    1600C' '             Table in which to store integers
+EOT      DS    F                  End-of-table address
+*
+H1       DC    C'1'
+         DC    CL24'                        '
+         DC    CL24' Initial Table Contents ' Print header caption #1
+H2       DC    C'1'
+         DC    CL24'                        '
+         DC    CL24'Table After Transactions' Print header caption #2
+PGCTR    DC    PL2'1'
+*********************************************************************
+*                          Parameters
+*********************************************************************
+PARM1    DC    A(TABLE,EOT)            Parameter for Build
+PARM2    DC    A(TABLE,EOT,H1,PGCTR)   Parameter for Print 1st time
+PARM3    DC    A(TABLE,EOT,H2,PGCTR)   Parameter for Print 2nd time
+*PARM4    DC    A(TABLE,EOT,PGCTR)      Parameter for Trans
+PARM4    DC    A(TABLE,EOT,PGCTR)      Parameter for Trans
+*********************************************************************
+*                      TABLE DUMMY SECTION                          *
+*********************************************************************
+$ENTRY   DSECT
+$ID      DS    F
+$FNAME   DS    10C
+$LNAME   DS    12C
+$SCORE1  DS    PL2
+$SCORE2  DS    PL2
+$SCORE3  DS    PL2
+**** Total bytes: 29 ****
+*********************************************************************
+*                             BUILD                                 *
+*********************************************************************
+* BUILD Subroutine - Read the input file & build/load the table;
+*                    store the @ of the last entry in a fullword
+*                    passed in as a parameter. Store the number of 
+*                    entries in a numerical field passd in as a 
+*                    parameter.
+* REGISTER USAGE:
+*
+*              1     USED by TRT
+*              2     Used by TRT
+*              3     @ of TABLE
+*              4     @ of EOT
+*              5     temp @ of non space
+*              6     temp @ of space, used to calc length
+*              7     temp @ of current location
+*              8     Used by dsect for table
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used by linkage
+*             15     Used by linkage  
+*
+* NOTES:      None.
+*********************************************************************
+BUILD    CSECT                      E       L
+         STM   14,12,12(13)          n       i
+         LR    12,15                  t       n
+         USING BUILD,12                r       k
+         LA    14,BSAVE                 y       a
+         ST    13,4(,14)                         g
+         ST    14,8(,13)                          e
+         LR    13,14
+***************************
+         USING $ENTRY,R3
+         LM    3,4,0(1)           R3 = TABLE, R4 = EOT
+*
+BLOOP    XREAD BUFFER,80          Read a line in the file
+*
+* Convert ID to binary and store in table element
+*
+         PACK  TEMPID(8),BUFFER(8) Pack ID into temp storage
+         CVB   R5,TEMPID          Convert ID to binary, load to R5
+         LTR   R5,R5              Check if we are at the delimiter
+         BC    B'1000',ENDBLOOP   If we are, end loop, else
+         ST    R5,$ID             Store binary ID in table
+*
+* Move 1st name to table element
+*
+         TRT   BUFFER+8(80),NONSPACE Find @ of 1st ch of 1st name
+         LR    R5,R1              R5 = @ of 1st char in name
+*
+         TRT   0(80,R5),SPACE     Find @ of space after 1st name
+         LR    R6,R1              R6 = @ of space after 1st name
+         LR    R7,R6              Save it in R7 for next search
+*
+         SR    R6,R5              Calculate length of 1st name
+         BCTR  R6,0               Subtract 1
+*
+         EX    R6,MOVE1           Use length & move 1st name to table
+*
+* Move last name to table element
+*
+         TRT   0(80,R7),NONSPACE  Find @ of 1st ch of last name
+         LR    R5,R1              R5 = @ of 1st char in last name
+*
+         TRT   0(80,R5),SPACE     Find @ of space after last name
+         LR    R6,R1              R6 = @ of space after last name
+         LR    R7,R6              Save it in R7 for next search
+*
+         SR    R6,R5              Calculate length of last name
+         BCTR  R6,0               Subtract 1
+         EX    R6,MOVE2          Use length & move last name to table
+*
+* Pack first score into table element
+*
+         TRT   0(80,R7),NONSPACE  Find @ of 1st char of 1st score
+         LR    R5,R1              R5 = @ of 1st char of 1st score
+*
+         TRT   0(80,R5),SPACE     Find @ of space after 1st score
+         LR    R6,R1              R6 = @ of space after 1st score
+         LR    R7,R6              Save it in R7 for next search
+*
+         SR    R6,R5              Compute length of 1st score
+         BCTR  R6,0               Subtract 1
+         EX    R6,PACK1       Use length to pack 1st score into table
+*
+* Pack second score into table element
+*
+         TRT   0(80,R7),NONSPACE  Find @ of 1st char of 2nd score
+         LR    R5,R1              R5 = @ of 1st char of 2nd score
+*
+         TRT   0(80,R5),SPACE     Find @ of space after 2nd score
+         LR    R6,R1              R6 = @ of space after 2nd score
+         LR    R7,R6              Save it in R7 for next search
+*
+         SR    R6,R5              Compute length of 2nd score
+         BCTR  R6,0               Subtract 1
+         EX    R6,PACK2       Use length to pack 2nd score into table
+*
+* Pack third score into table element
+*
+         TRT   0(80,R7),NONSPACE  Find @ of 1st char of 3rd score
+         LR    R5,R1              R5 = @ of 1st char of 3rd score
+*
+         TRT   0(80,R5),SPACE     Find @ of space after 3rd score
+         LR    R6,R1              R6 = @ of space after 3rd score
+         LR    R7,R6              Save it in R7 for next search
+*
+         SR    R6,R5              Compute length of 3rd score
+         BCTR  R6,0               Subtract 1
+         EX    R6,PACK3       Use length to pack 3rd score into table
+** 
+         LA    R3,32(R3)          Next table entry
+         B     BLOOP
+ENDBLOOP ST    R3,0(R4)           Store EOT
+*
+*         XDUMP
+*         XDUMP 0(R4),80          R4 CONTAINS TABLE ADDRESS
+****************************  
+         L     R13,4(,R13)          E
+         LM    R14,R12,12(13)        x
+         BR    R14                    i
+*                                      t Linkage
+*********************************************************************
+*                         Build storage
+*********************************************************************
+         LTORG
+BSAVE    DS    18F               Store registers here
+BUFFER   DC    80C' '            Input record buffer
+TEMPID   DS    PL8               Temp storage for CVB
+*****
+NONSPACE DC    256X'FF'          Translate table to locate space ch
+         ORG   NONSPACE+X'40'
+         DC    X'00'
+         ORG
+SPACE    DC    256X'00'          Translate table to locate nonpace ch
+         ORG   SPACE+X'40'
+         DC    X'FF'
+         ORG
+*****
+MOVE1    MVC   $FNAME(0),0(R5)    Execute to move to 1st name
+MOVE2    MVC   $LNAME(0),0(R5)    Execute to move to last name
+*****
+PACK1    PACK  $SCORE1(2),0(0,R5)  Execute to pack 1st score
+PACK2    PACK  $SCORE2(2),0(0,R5)  Execute to pack 2nd score
+PACK3    PACK  $SCORE3(2),0(0,R5)  Execute to pack 3rd score
+*********************************************************************
+*                             PRINT                                 *
+*********************************************************************
+* PRINT Subroutine - 
+* REGISTER USAGE:
+*
+*              1     Holds parameters, pointer to buffer
+*              4     @ of TABLE
+*              5     @ of EOT
+*              6     @ of Header
+*              7     @ of Page counter
+*              8     Counter for loop
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used by linkage
+*             15     Used by linkage  
+*
+* NOTES:      None.  
+*********************************************************************
+PRINT    CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING PRINT,12              r       k
+         LA    14,PSAVE               y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+         LM    R4,R7,0(R1)      R4=TABLE,R5=EOT,R6=HEADER,R7=PG CNTR
+         USING $ENTRY,R4               Use DSECT
+*
+         L     R8,=F'1'                Initialize counter
+         MVC   PAGE(4),=X'4020202020'  Prepare Page number 
+         ED    PAGE(4),0(R7)            for print
+         XPRNT 0(R6),49                Print caption header
+RESUME1  XPRNT PPAGE,PPAGEND-PPAGE     Print page number
+         XPRNT TITL1,TITL1END-TITL1    Print titles
+*
+         AP    0(2,R7),=PL2'1'         Increment page number
+PLOOP    C     R4,0(R5)                EOT?
+         BC    B'1000',ENDPLOOP        Then exit loop, else
+         C     R8,=F'22'
+         BC    B'0100',SKIP
+         L     R8,=F'1'
+         MVC   PAGE(4),=X'4020202020'  Prepare Page number 
+         ED    PAGE(4),0(R7)            for print
+         AP    0(2,R7),=PL2'1'         Increment page number
+         XPRNT 0(R6),49                Print caption header
+         XPRNT PPAGE,PPAGEND-PPAGE     Print page number
+         XPRNT TITL1,TITL1END-TITL1    Print titles
+SKIP     L     R3,$ID                  Grab ID
+         CVD   R3,TEMP                 Convert to decimal
+         MVC   PID(10),=X'40212020202020202020' Pattern
+         ED    PID(10),TEMP+3
+         MVC   PFNAME(10),$FNAME       Grab first name
+         MVC   PLNAME(12),$LNAME       Grab last name
+         MVC   PSCORE1(4),=X'4020202020' Pattern for 1st score
+         ED    PSCORE1(4),$SCORE1      Edit score with pattern
+         MVC   PSCORE2(4),=X'4020202020' Pattern for 2nd score
+         ED    PSCORE2(4),$SCORE2      Edit score with pattern
+         MVC   PSCORE3(4),=X'4020202020' Pattern for 3rd score
+         ED    PSCORE3(4),$SCORE3      Edit score with pattern
+         XPRNT PRNT,PEND-PRNT          Print IDs, names, & scores
+         LA    R4,32(R4)               Save EOT @
+         A     R8,=F'1'
+         B     PLOOP                   Continue!
+ENDPLOOP DS    0H
+*
+         L     R13,4(,R13)          E
+         LM    R14,R12,12(13)        x
+         BR    R14                    i
+*                                      t Linkage
+*********************************************************************
+*                          Print storage                            *
+*********************************************************************
+         LTORG
+PSAVE    DS    18F                Save registers here
+TEMP     DS    D
+PRNT     DC    C'0'
+PID      DS    CL8
+         DC    CL10' '
+PLNAME   DS    CL12
+         DC    CL5' '
+PFNAME   DS    CL10
+         DC    CL5' '
+PSCORE1  DS    CL3
+         DC    CL5' '
+PSCORE2  DS    CL3
+         DC    CL5' '
+PSCORE3  DC    CL4' '
+PEND     DS    0C
+PPAGE    DC    C'0'
+         DC    CL60' '
+         DC    CL4'PAGE'
+PAGE     DC    CL4' '
+PPAGEND  DS    0C
+*
+CAPTFILL DC    C'1'
+         DC    CL24'                       '
+CAPTEND  DS    0C
+TITL1    DC    CL49'- ID Number        Last Name        First Name '
+         DC    CL27' Score 1  Score 2  Score 3'
+TITL1END DS    0C
+*********************************************************************
+* TRANS Subroutine - Read the second group of records and carry out 
+*                    the transactions. TRANS will print a line about
+*                    each transaction.
+*
+* Register Usage:
+*
+*              3     Table @
+*              4     EOT   @
+*              5     Buffer #2
+*             12     Used by linkage
+*             13     Used by linkage
+*             14     Used by linkage
+*             15     Used by linkage
+*********************************************************************   
+TRANS    CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING TRANS,12              r       k
+         LA    14,TSAVE               y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+         USING $ENTRY,R6          Use dummy section
+         LM    R3,R5,0(R1)        R3=Table @, R4=EOT @, R5=pg counter
+         LR    R6,R3              Load table @ into R6
+*
+* Print
+*       the
+*           header
+*
+         XPRNT THEAD,THEND-THEAD  Print header
+         MVC   TAGE(4),=X'4020202020'  Prepare Page number 
+         ED    TAGE(4),0(R5)            for print
+         XPRNT TPAGE,TPAGEND-TPAGE     Print page number
+         AP    0(2,R5),=PL2'1'         Increment page number
+*
+TLOOP1   DS    0H
+         XREAD BUFFER2,80         Read from buffer again with updates
+         BC    B'0100',TDONE      Done! YAY!
+*
+PACKID   PACK  TID(8),BUFFER2(8)  Pack ID from buffer
+         MVC   TCHAR(1),BUFFER2+9 Read the transaction code letter
+         CLC   TCHAR(1),=C'N'     Check if new entry
+         BE    NEWPEEP            Skip to new
+         CLC   TCHAR(1),=C'S'     Check if statistic
+         BE    STATCODE           Skip to statistics
+INVALID  MVC   TINID(10),=XL10'40212020202020202020' Invalid!OH NOES!
+         ED    TINID(10),TID+3    Put ID in line
+         MVC   TINTRC(1),TCHAR    Check char
+         XPRNT PRINTINV,TINEND-PRINTINV Print!
+         B     PRINTYO            Go to print line
+STATCODE CVB   R8,TID             Convert ID to binary format
+         LR    R6,R3              R6 = table @
+CHECK    C     R6,0(R4)           Check if EOT
+         BE    INVAL              Invalid user?
+         C     R8,$ID             Check ID numbers
+         BE    CONT               Equal?
+         LA    R6,32(R6)          Next record!
+         B     CHECK              Go check!
+CONT     ZAP   TEMP2,=P'0'        Initialize
+ADD1     AP    TEMP2,$SCORE1      Add 1st score to temp
+ADD2     AP    TEMP2,$SCORE2      Add 2nd score to temp
+ADD3     AP    TEMP2,$SCORE3      Add 3rd score to temp
+         DP    TEMP2,=P'3'        Average = divide by 3
+*
+         ZAP   HI,=P'0'           Initialize
+         AP    HI,$SCORE1         Make score #1 highest
+         CP    HI,$SCORE2         Compare score #1 & score #2    
+         BH    COMP3              Score #1 higher?
+         ZAP   HI,$SCORE2         Score #2 is the highest
+COMP3    CP    HI,$SCORE3         Compare score to score #3
+         BH    TPRINT             Print higher number
+         ZAP   HI,$SCORE3         Score #3 is highest
+* selecton sort *
+*         XREAD BUFFER2,80           Read next line
+*         PACK  TEMP2(2),BUFFER2+11(2) Load new score into TEMP2
+*         CVB   R2,TEMP2             
+*         LA    R9,$SCORE1           Load Score 1 to R9
+*         CP    0(2,R9),$SCORE2(2)   Compare Score 1 to Score 2
+*         BC    B'0100',NEXT1        If less, then skip next section
+*         LA    R9,$SCORE2           else, R9 = Score 2
+*NEXT1    CP    0(2,R9),$SCORE3(2)   Compare R9 to Score 3
+*         BC    B'0100',NEXT2        If less, then skip next section
+*         LA    R9,$SCORE3           else, R9 = Score 3
+*NEXT2    CP    0(2,R9),TEMP2(2)     Compare R9 to new score
+*         BC    B'0100',OKAY         if less, then skip next section
+*         LA    R9,TEMP2             else, R9 = new score
+*         XPRNT =CL13' Test message',13 
+*OKAY     XPRNT =CL10' No change',10
+*
+* Time
+*      to
+*          print
+*
+TPRINT   DS    0H
+         MVC   TRNID(10),=XL10'40212020202020202020' Pattern
+         ED    TRNID(10),TID+3                       Print ID
+         MVC   TRNAVG(5),=XL5'4020202120'            Pattern
+         ED    TRNAVG(5),TEMP2+1                     Score average
+         MVC   TRNHIGH(4),=XL4'40202120'             Pattern
+         ED    TRNHIGH(4),HI                         High score
+         XPRNT PRINTTRS,TRNEND-PRINTTRS              Print
+         B     PRINTYO                               Go to print
+INVAL    DS    0H                                    Not found
+         MVC   NIDID(10),=XL10'40212020202020202020' Pattern
+         ED    NIDID(10),TID+3                       Store ID
+         XPRNT PRINTNID,NIDEND-PRINTNID              Print                   
+NEWPEEP  B     PRINTYO                               Noob!
+*
+* Destructive overlap! BOOOOOOM!
+*
+PRINTYO  MVI   TLINE+15,C' '
+         MVC   TLINE+16(80),TLINE+15
+         B     TLOOP1                 Loop to beggining
+*
+TDONE    L     R13,4(,R13)          E
+         LM    R14,R12,12(13)        x
+         BR    R14                    i
+*                                      t Linkage
+*********************************************************************
+*                          Trans Storage
+*********************************************************************
+         LTORG
+BUFFER2  DC    81C' '
+*TEMP2    DS    D
+* Headers
+TPAGE    DC    C'0'
+         DC    CL60' '
+         DC    CL4'PAGE'
+TAGE     DC    CL4' '
+TPAGEND  DS    0C
+PRINTINV DC    C'0'
+         DC    CL5'ID = '
+TINID    DC    CL10' '
+         DC    CL5' '
+         DC    CL14'Trans. Code = '
+TINTRC   DC    CL1' '
+         DC    CL7' '
+         DC    CL24'Invalid transaction code'
+TINEND   DS    0C
+PRINTTRS DC    C'0'
+         DC    CL5'ID = '
+TRNID    DC    CL10' '
+         DC    CL5' '
+         DC    CL17'Type = Statistics'
+         DC    CL5' '
+         DC    CL10'Average = '
+TRNAVG   DC    CL5' '
+         DC    CL5' '
+         DC    CL7'High = '
+TRNHIGH  DC    CL4' '
+TRNEND   DS    0C
+PRINTNID DC    C'0'
+         DC    CL5'ID = '
+NIDID    DC    CL10' '
+         DC    CL5' '
+         DC    CL17'Type = Statistics'
+         DC    CL5' '
+         DC    CL12'ID Not Found'
+NIDEND   DS    0C
+TLINE    DC    C'0'
+         DC    91C' '
+         ORG   TLINE+8
+         DC    CL6'OID = '
+         ORG   TLINE+15
+         DC    XL10'40212020202020202020'
+         ORG
+TCHAR    DS    C
+TID      DS    D
+TEMP2    DC    PL4'0'
+HI       DC    PL2'0'
+TSAVE    DS    18F
+THEAD    DC    CL48'1                       Results of Transactions'
+THEND    DS    0H
+*********************************************************************
+*                             Equates
+*********************************************************************
+R0       EQU   0
+R1       EQU   1
+R2       EQU   2
+R3       EQU   3
+R4       EQU   4
+R5       EQU   5
+R6       EQU   6
+R7       EQU   7
+R8       EQU   8
+R9       EQU   9
+R10      EQU   10
+R11      EQU   11
+R12      EQU   12
+R13      EQU   13
+R14      EQU   14
+R15      EQU   15
+*********************************************************************
+         END   MAIN
+/*
+//FT05F001    DD DSN=KC02314.SUMMER14.CSCI360.HW7DATA,DISP=SHR
+//FT06F001    DD SYSOUT=*
+//

@@ -1,0 +1,191 @@
+//KC03NEBU JOB ,'EDGAR SIAS',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+****************************MAIN****************************
+*
+*  Program:     ASSIGN4
+*  Programmer:  EDGAR SIAS
+*
+*  Register usage:
+*    1   Holds parameters, used by XDECI in subroutines
+*    11  Branch register for BUILD subroutine
+*    12  Branch register for PRINT subroutine
+*    13  Branch register for PRINTE subroutine
+*
+************************************************************
+MAIN     CSECT
+         USING MAIN,15             START PROGRAM
+         TITLE 'EDGAR SIAS,CSCI 360, PROGRAM 4'
+         LA    1,PLIST1            LOAD BUILD PARAMETERS
+         BAL   11,BUILD            USE BUILD SUBROUTINE
+         LA    1,PLIST2            LOAD PRINT PARAMETERS
+         BAL   12,PRINT            USE PRINT SUBROUTINE
+         BAL   13,PRINTE           USE PRINTE SUBROUTINE
+         BR    14                  EXIT EXECUTION
+************************************************************
+         LTORG                     LIST MAIN LITERALS
+MAINSAVE DS    16F                 REGISTER STORAGE ADDRESS
+TABLE    DS    48F                 TABLE, 48 FULLWORDS
+ENDTABLE DS    0H                  TABLE DELIMITER
+EOT      DC    A(TABLE)            END OF TABLE
+CARD     DS    80C                 FILE BUFFER
+         DC    C'*'                BUFFER DELIMITER
+PLIST1   DC    A(TABLE)            PARAMETER
+         DC    A(ENDTABLE)          LIST
+         DC    A(EOT)                FOR
+         DC    A(CARD)                BUILD
+PLIST2   DC    A(TABLE)            PARAMETER LIST
+         DC    A(ENDTABLE)         FOR PRINT, PRINTE
+FPRINT   DC    C'0'                PRINT FOR PRINT SUBROUTINE
+FONE     DC    CL12' '             PRINT ADDRESS FOR 1ST VAL
+FTWO     DC    CL12' '             PRINT ADDRESS FOR 2ND VAL
+FTHREE   DC    CL12' '             PRINT ADDRESS FOR 3RD VAL
+FFOUR    DC    CL12' '             PRINT ADDRESS FOR 4TH VAL
+FFIVE    DC    CL12' '             PRINT ADDRESS FOR 5TH VAL
+SPRINT   DC    C'0'                PRINT FOR PRINTE SUBROUTINE
+SONE     DC    CL12' '             PRINT ADDRESS FOR 1ST VAL
+STWO     DC    CL12' '             PRINT ADDRESS FOR 2ND VAL
+STHREE   DC    CL12' '             PRINT ADDRESS FOR 3RD VAL
+SFOUR    DC    CL12' '             PRINT ADDRESS FOR 4TH VAL
+SFIVE    DC    CL12' '             PRINT ADDRESS FOR 5TH VAL
+SSIX     DC    CL12' '             PRINT ADDRESS FOR 6TH VAL
+**************************BUILD*****************************
+*
+*  Register usage:
+*    1   Holds parameters, used by XDECI in subroutines
+*    2   Holds table entry location
+*    3   Holds a value read from CARD
+*    4   Holds TABLE address
+*    5   Holds ENDTABLE address
+*    6   Holds EOT address
+*    7   Holds CARD address
+*    11  Register to branch back to main
+*
+************************************************************
+BUILD    STM   0,15,MAINSAVE       SAVE REGISTERS TO STORAGE
+         LM    4,7,0(1)            LOAD PARAMETERS
+         LA    2,0(4)              POINT TO TABLE
+         XREAD 0(7),80             READ LINE FROM FILE
+TOPWHILE BC    B'0100',ENDTOP      WHILE NOT EOF
+         CR    2,5                 IF TABLE FULL, END OUT
+         BC    B'1010',ENDTOP      IF IS, END TOP LOOP
+         XDECI 3,0(7)              READ NUMBER IN LINE
+INWHILE  BC    B'0001',ENDIN       IF INVALID NUMBER, EXIT LOOP
+         CR    2,5                 IF TABLE FULL, END IN LOOP
+         BC    B'1010',ENDIN       EXIT IN LOOP
+         ST    3,0(2)              STORE FIRST NUMBER IN TABLE
+         LA    2,4(2)              MOVE TO NEXT TABLE ENTRY
+         XDECI 3,0(1)              READ NEXT NUMBER
+         B     INWHILE             BACK TO IN LOOP
+ENDIN    XREAD 0(7),80             READ NEXT LINE
+         B     TOPWHILE            BACK TO TOP LOOP
+ENDTOP   ST    2,0(6)              STORE END OF TABLE
+         LM    0,15,MAINSAVE       RESTORE REGISTER
+ENDBUILD BR    11                  BACK TO MAIN
+************************************************************
+         LTORG                     LIST BUILD LITERALS
+**************************PRINT*****************************
+*
+*  Register usage:
+*    1   Holds parameters, used by XDECI in subroutines
+*    2   Holds table entry location
+*    4   Holds TABLE address
+*    5   Holds ENDTABLE address
+*    6   Holds actual value (not address) of table entry
+*    12  Register to branch back to main
+*
+************************************************************
+PRINT    STM   0,15,MAINSAVE       SAVE REGISTERS TO STORAGE
+         LM    4,5,0(1)            LOAD PARAMETERS
+         LA    2,0(4)              POINT TO TABLE
+         XPRNT HEAD1,41            PRINT HEADER
+LOOP     MVI   FPRINT,C' '         DESTRUCTIVE
+         MVC   FPRINT+1(79),FPRINT  OVERLAP
+         CR    2,5                 END OF TABLE?
+         BC    B'1010',ENDLOOP     THEN EXIT, ELSE
+         L     6,0(2)              LOAD VALUE INTO R6
+         XDECO 6,FONE              PREPARE PRINTING FOR VALUE
+         LA    2,4(2)              MOVE TO NEXT ENTRY
+         CR    2,5                 IF TABLE END
+         BC    B'1010',PRNT        THEN PRINT, ELSE
+         L     6,0(2)              LOAD VALUE INTO R6
+         XDECO 6,FTWO              PREPARE PRINTING FOR VALUE
+         LA    2,4(2)              MOVE TO NEXT ENTRY
+         CR    2,5                 IF TABLE END
+         BC    B'1010',PRNT        THEN PRINT, ELSE
+         L     6,0(2)              LOAD VALUE INTO R6
+         XDECO 6,FTHREE            PREPARE PRINTING FOR VALUE
+         LA    2,4(2)              MOVE TO NEXT ENTRY
+         CR    2,5                 IF TABLE END
+         BC    B'1010',PRNT        THEN PRINT, ELSE
+         L     6,0(2)              LOAD VALUE INTO R6
+         XDECO 6,FFOUR             PREPARE PRINTING FOR VALUE
+         LA    2,4(2)              MOVE TO NEXT ENTRY
+         CR    2,5                 IF TABLE END
+         BC    B'1010',PRNT        THEN PRINT, ELSE
+         L     6,0(2)              LOAD VALUE INTO R6
+         XDECO 6,FFIVE             PREPARE PRINTING FOR VALUE
+         LA    2,4(2)              MOVE TO NEXT ENTRY
+PRNT     XPRNT FPRINT,80           PRINT LINE
+         B     LOOP                BACK TO LOOP
+ENDLOOP  LM    0,15,MAINSAVE       RESTORE REGISTERS
+ENDPRINT BR    12                  BACK TO MAIN
+************************************************************
+         LTORG                     LIST PRINT LITERALS
+HEAD1    DC   C'1'                 HEADER FOR PRINT SUBROUTINE
+         DC   CL25' '
+         DC   CL15'List of Numbers'
+***************************PRINTE***************************
+*
+*  Register usage:
+*    1   Holds parameters, used by XDECI in subroutines
+*    4   Holds TABLE address
+*    5   Holds ENDTABLE address
+*    6   Holds actual (not address of) value
+*    7   Counter in loop, will determine when new line happens
+*    8   Used in division, holds a remainder
+*    9   Used in division, holds entry value
+*    13  Register to branch back to main
+*
+************************************************************
+PRINTE   STM   0,15,MAINSAVE       SAVE REGISTERS TO STORAGE
+         LM    4,5,0(1)            LOAD PARAMETERS
+         LA    2,0(4)              POINT TO TABLE
+         SR    7,7                 COUNTER = 0
+         SR    8,8                 R8 = 0
+         XPRNT HEAD2,46            PRINT HEADER
+LOOP2    CR    2,5                 ARE WE AT END OF TABLE?
+         BC    B'1010',ENDLOOP2    THEN EXIT LOOP, ELSE
+         M     8,=F'1'             MULTIPLY R9 BY  1
+         L     9,0(2)              LOAD ENTRY TO R9
+         D     8,=F'2'             DIVIDE ENTRY BY 2
+IF       C     7,=F'72'            IF NOT 6TH ITERATION
+         BC    B'0111',IF2          THEN SKIP TO IF2
+         XPRNT SPRINT,73           PRINT VARIABLES
+         MVI   SPRINT+1,C' '         ELSE DESTRUCTIVE
+         MVC   SPRINT+2(71),SPRINT+1  OVERLAP    
+ENDIF    SR    7,7                 RESET COUNTER
+IF2      C     8,=F'0'             IF VALUE IS EVEN        
+         BC    B'0111',GOBACK      THEN DONT PREPARE VALUE FOR PRINITNG
+         L     6,0(2)              LOAD VALUE INTO R6
+         XDECO 6,SONE+0(7)         PREPARE VALUE FOR PRINTING
+         LA    7,12(7)             INCREMENT COUNTER
+ENDIF2   DS    0H                  END OF IF2
+GOBACK   LA    2,4(2)              MOVE TO NEXT TABLE ENTRY
+         B     LOOP2               BACK TO LOOP2
+ENDLOOP2 XPRNT SPRINT,73           PRINT LAST LINE
+         LM    0,15,MAINSAVE       RESTORE REGISTERS
+ENDPRNTE BR    13                  BACK TO MAIN              
+************************************************************
+         LTORG                     LIST PRINTE LITERALS
+HEAD2    DC   C'1'                 HEADER FOR PRINTE SUBROUTINE
+         DC   CL25' '
+         DC   CL25'List of Even Numbers'
+************************************************************
+         END   MAIN
+/*
+//FT05F001  DD  DSN=KC02314.SUMMER14.CSCI360.HW4DATA,DISP=SHR
+//FT06F001 DD SYSOUT=*
+//

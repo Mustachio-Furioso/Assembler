@@ -1,0 +1,106 @@
+//KC03NEBA JOB ,'EDGAR SIAS',MSGCLASS=H
+//STEP1   EXEC  PGM=ASSIST,PARM='MACRO=F'
+//STEPLIB   DD  DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT  DD  SYSOUT=*
+//SYSIN     DD  * 
+*********************************************************************
+* CSCI 360     ASSIGNMENT 9      SUMMER 2014      COPYRIGHT (C) 2014
+*                               
+* NAME:        JAQUELYNE SMITH & EDGAR SIAS
+* KID:         KC03NEE         & KC03NEB
+*                                   
+* MACROS:      These three macros will test a driver program that 
+*              is provided: calling, entry & exit linkage.
+*
+* DUE DATE:    August 5, 2014
+*
+* LAST EDIT:   3:35pm 08.3.2014
+*********************************************************************
+* Call Macro - Call an external subroutine
+*********************************************************************
+         MACRO                         
+&LABEL   CALL  &NAME,&PL=
+* Verify that &NAME is not missing
+         AIF   ('&NAME' EQ '').ERROR   
+         AIF   ('&PL' EQ '').LOAD
+         LA    1,&PL                   
+.LOAD    L     15,=V(&NAME)            
+         BALR  14,15
+         MEXIT
+* &NAME is missing. Abort mission!
+.ERROR   MNOTE '*** Subroutine not specified ***'
+         MEXIT                         
+         MEND 
+*********************************************************************
+* Entry Macro - Provide standard entry linkage for an external 
+*               subroutine.
+*********************************************************************
+         MACRO
+&LABEL   ENTER &NAME,&SAVE,&BR=12
+* Verify that &NAME and &SAVE are not null strings!
+         AIF   ('&NAME' EQ '').ERROR1     
+         AIF   ('&SAVE' EQ '').ERROR2
+* Allowable values for base register are: 10, 11 & 12
+         AIF   ('&BR' EQ '10').NOERR 
+         AIF   ('&BR' EQ '11').NOERR
+         AIF   ('&BR' EQ '12').NOERR
+* If another value is used for &BR, complain, and go ahead with the
+* the disaster...
+         MNOTE '*** Invalid base register ***'
+.NOERR   STM   14,&BR,12(13)
+         LR    &BR,15
+         USING &NAME,&BR
+         LA    14,&SAVE
+         ST    13,4(,14)
+         ST    14,8(,13)
+         LR    13,14
+         MEXIT
+* ERROR! ABORT MISSION!
+.ERROR1  MNOTE '*** Subroutine not specified ***'
+         MEXIT
+.ERROR2  MNOTE '*** Save area not specified ***'
+         MEXIT
+         MEND 
+*********************************************************************
+* Exit Macro - provide standard exit linkage for an external 
+*              subroutine.
+*
+* Note: Another approach to make sure leftmost 20 bits of reg 15 are
+*       zero would be to shift left logical 20 and then shift right.
+*********************************************************************
+         MACRO                         
+&LABEL   EXIT  &RC=
+* Allowable values for &RC are 0 to 4095
+         AIF   ('&RC' LT '0').ERROR3
+         AIF   ('&RC' GT '4095').NOTNULL
+         AIF   ('&RC' NE '').NOTNULL      
+*The value of register 15 should be restored as usual
+.NORMAL  ANOP
+         L     13,4(,13)
+         LM    14,12,12(13)
+         BR    14
+         MEXIT
+.NOTNULL ANOP
+*Load the value into register 15
+         L     15,&RC
+*Make sure the leftmost 20 bits of register 15 are 0
+         N     15,=X'00000FFF'
+*Do not restore register 15
+         L     13,4(,13)
+         L     14,12(,13)
+         LM    0,12,20(13)
+         BR    14
+         AGO   .DONE
+         MEXIT
+*if invalid RC, say so and exit normally 
+.ERROR3  MNOTE '*** Invalid RC ***'
+         AGO   .NORMAL
+         MEXIT
+.DONE    ANOP
+         MEXIT
+         MEND
+*********************************************************************
+//          DD DSN=KC02314.SUMMER14.CSCI360.HW9.DRIVER,DISP=SHR
+//FT05F001  DD DUMMY
+//FT06F001  DD SYSOUT=*
+//        

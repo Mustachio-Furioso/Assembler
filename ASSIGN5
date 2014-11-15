@@ -1,0 +1,261 @@
+//KC03NEBU JOB ,'EDGAR SIAS',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+****************************MAIN****************************
+*
+*  Program:     ASSIGN5
+*  Programmer:  EDGAR SIAS
+*
+*  Register usage:
+*    1   Holds parameters, used by XDECI
+*    7   Holds DIV
+*    8   Holds HOWMANY
+*    11  Branch register for BUILD subroutine
+*    12-15 Used for linkage
+*
+************************************************************
+MAIN    CSECT
+* entry linkage *
+         STM   14,12,12(13)    Save registers in caller's save
+         LR    12,15           Clear r15 for future calls. L
+         USING MAIN,12         R12 as base register.
+         LA    14,MAINSAVE     Point R14 at local save.
+         ST    13,4(0,14)      Save backward pointer in local save
+         ST    14,8(0,13)      Save forward pointer in caller's save
+         LR    13,14           Point R13 at local save.
+***************
+         TITLE 'EDGAR SIAS,CSCI 360, PROGRAM 5'
+         LA    1,PLIST1            LOAD BUILD PARAMETERS
+         L     15,=V(BUILD)
+         BALR  14,15
+         XPRNT TABCON,16
+         LA    1,PLIST3            LOAD PRINT PARAMETERS
+         L     15,=V(PRINT)
+         BALR  14,15
+         LA    1,PLIST2
+         L     15,=V(SORT)
+         BALR  14,15
+         XPRNT SORTCON,21
+         LA    1,PLIST3
+         L     15,=V(PRINT)
+         BALR  14,15
+**********
+         XREAD CARD,80           
+HLOOP    BC    B'0100',ENDHLOOP  
+         XDECI 7,CARD            
+         ST    7,DIV             
+         XDECI 8,0(1)          
+         ST    8,HOWMANY     
+         XDECO 7,DIVID
+         XPRNT TITLE,26
+         LA    1,PLIST3           LOAD PRINT PARAMETERS
+         L     15,=V(PRINT)      
+         BALR  14,15     
+         XREAD CARD,80
+         B     HLOOP             
+ENDHLOOP DS    0H                          
+* exit linkage *
+         L     13,4(0,13)      Point R13 at caller's save area.           
+         LM    14,12,12(13)    Restore regs.
+         BR    14              Return.
+************************************************************
+         LTORG                     LIST MAIN LITERALS
+MAINSAVE DS    18F                 Storage for linkage
+TABLE    DS    60F'-1'             TABLE, 60 FULLWORDS
+EOT      DS    1F                  END OF TABLE
+CARD     DS    80C                 FILE BUFFER
+         DC    C'*'                BUFFER DELIMITER
+DIV      DC    F'1'                Divisor
+HOWMANY  DC    F'5'                Numbers to print per line
+PLIST1   DC    A(TABLE)            PARAMETER
+         DC    A(EOT)               LIST
+         DC    A(CARD)               FOR BUILD
+PLIST2   DC    A(TABLE)            PARAMETER LIST
+         DC    A(EOT)               FOR SORT
+PLIST3   DC    A(TABLE)            PARAMETER
+         DC    A(EOT)               LIST
+         DC    A(DIV)                FOR
+         DC    A(HOWMANY)             PRINT
+TITLE    DC    C'1'                Header 
+         DC    CL13'Multiples of '  for 
+DIVID    DS    12C                   divisor print
+TABCON   DC    C'1'                Header for
+         DC    CL15'Table contents:'  raw table
+SORTCON  DC    C'1'                Header for 
+         DC    CL20'Table After Sorting:' sorted table
+************************************************************
+**************************BUILD*****************************
+*
+*  Register usage:
+*    1   Holds parameters
+*    3   Holds the individual number
+*    4   Holds TABLE address
+*    5   Holds EOT address
+*    6   Holds address of CARD
+*    12-15 Used for linkage
+*
+************************************************************
+BUILD    CSECT
+* entry linkage *
+         STM   14,12,12(13)    Save registers in caller's save
+         LR    12,15           Clear r15 for future calls.
+         USING BUILD,12        R12 as base register.    
+         LA    14,BLDSAVE      Point R14 at local save.
+         ST    13,4(0,14)      Save backward pointer in local save
+         ST    14,8(0,13)      Save forward pointer in caller's save
+         LR    13,14           Point R13 at local save.
+***************
+         LM    4,6,0(1)            LOAD PARAMETERS
+         XREAD 0(6),80             READ LINE FROM FILE
+TOPWHILE XDECI 3,0(6)              READ NUMBER IN LINE
+         C     3,=F'-88888888'     IF NUMBER = -8888888
+         BC    B'1000',ENDTOP      EXIT OUTLOOP, ELSE
+BOTWHILE ST    3,0(4)              STORE NUMBER IN TABLE
+         LA    4,4(4)              MOVE TO NEXT TABLE ENTRY
+         XDECI 3,0(1)              READ NEXT NUMBER
+         BC    B'0001',ENDBOT      IF INVALID NUM, EXIT INLOOP
+         B     BOTWHILE            BACK TO INLOOP
+ENDBOT   XREAD 0(6),80             READ NEXT LINE
+         BC    B'0100',ENDTOP
+         B     TOPWHILE            BACK TO TOP LOOP
+ENDTOP   ST    4,0(5)              STORE END OF TABLE
+* exit linkage *
+         L     13,4(0,13)      Point R13 at caller's save area.           
+         LM    14,12,12(13)    Restore regs.
+         BR    14              Return.
+************************************************************
+         LTORG                     LIST BUILD LITERALS
+BLDSAVE  DS    16F             
+***************************PRINT****************************
+*
+*  Register usage:
+*    1   Holds parameters on entry, then serves as counter
+*         to compare against HOWMANY to determine when to print
+*    2   Counter for print buffer, ensures we don't go out of bound
+*    3   Holds the print buffer limit
+*    4   Holds TABLE address
+*    5   Holds EoT address
+*    6   Holds DIV address
+*    7   Holds HOWMANY address
+*    9   Holds value of entry
+*    10  Holds remainder for entry/DIV
+*    11  Holds answer for entry/DIV
+*    12-15 Used for linkage
+*
+************************************************************
+PRINT    CSECT
+* entry linkage *
+         STM   14,12,12(13)     Save registers in caller's save
+         LR    12,15            Clear r15 for future calls.
+         USING PRINT,12         R12 as base register.
+         LA    14,PRNTSAVE      Point R14 at local save.
+         ST    13,4(0,14)       Save backward pointer in local save
+         ST    14,8(0,13)       Save forward pointer in caller's save
+         LR    13,14            Point R13 at local save.
+***************
+         LM    4,7,0(1)         LOAD PARAMETERS
+         LA    3,ENDPRNT        3 is ENDPRNT
+         L     7,0(7)           R7 now holds the value of HOWMANY
+TLOOP    CR    4,5              EOT?
+         BC    B'1000',ETLOOP   Then leave loop, else
+         L     1,=F'0'          R1 = 0 (reset)
+         LA    2,FIRST          2 = FIRST (reset)
+         MVI   PRNTNOW+1,C' '        Destructive
+         MVC   PRNTNOW+1(85),PRNTNOW  Overlap
+PLOOP    CR    2,3              Are we at the end of print buffer?
+         BC    B'1000',EPLOOP   Then end inner loop, else
+         CR    4,5              Are we at the end of the table?
+         BC    B'1000',EPLOOP   Then leave inner loop, else  
+         CR    1,7              Is the counter at HOWMANY?
+         BC    B'1000',EPLOOP   Then leave inner loop, else
+         L     9,0(4)           R9 = value of entry
+         LR    11,9             R11 = R9
+         M     10,=F'1'         Prep R11 for division
+         D     10,0(6)          Divide R11 by DIV
+         C     10,=F'0'         If remainder is not 0
+         BC    B'0111',NOPE     Then don't add to print buffer
+         XDECO 9,0(2)           Else add entry to print buffer
+         LA    2,12(2)          Increment print limit counter 
+         A     1,=F'1'          Increment counter
+NOPE     LA    4,4(4)           Move to next table entry
+         BC    B'1111',PLOOP    Repeat loop
+EPLOOP   XPRNT PRNTNOW,ENDPRNT-PRNTNOW  Print
+         BC    B'1111',TLOOP    Repeat inner loop
+ETLOOP   DS    0H               End outer loop
+* exit linkage *
+         L     13,4(0,13)       Point R13 at caller's save area.           
+         LM    14,12,12(13)     Restore regs.
+         BR    14               Return.       
+************************************************************
+         LTORG                 LIST PRINT LITERALS
+PRNTSAVE DS    18F             
+PRNTNOW  DC    C' '            Print variables
+FIRST    DS    12C' '          
+SECOND   DS    12C' '          
+THIRD    DS    12C' '          
+FOURTH   DS    12C' '          
+FIFTH    DS    12C' '          
+SIXTH    DS    12C' '          
+SEVENTH  DS    12C' '          
+ENDPRNT  DS    0C              
+************************************************************
+**************************SORT******************************
+*
+*  Register usage:
+*    1   Holds parameters
+*    2   Holds large number address
+*    3   Holds J address
+*    4   Holds TABLE address
+*    5   Holds EOT address
+*    7   Holds large number value
+*    8   Holds J number value
+*    9   Holds current entry on table
+*    12-15 Used for linkage
+*
+************************************************************
+SORT     CSECT
+* entry linkage *
+         STM   14,12,12(13)    Save registers in caller's save
+         LR    12,15           Clear r15 for future calls.
+         USING SORT,12         R12 as base register.     
+         LA    14,SORTSAVE     Point R14 at local save.
+         ST    13,4(0,14)      Save backward pointer in local save
+         ST    14,8(0,13)      Save forward pointer in caller's save
+         LR    13,14           Point R13 at local save.
+***************
+         LM    4,5,0(1)        
+OUTWHILE CR    4,5             Are we at EOT?
+         BC    B'0010',ENDOUT  quit outer loop
+         LA    2,4             2 = large
+         LA    3,4(4)          3 = J = next entry
+INWHILE  CR    3,5             J < End?
+         BC    B'1010',ENDIN   If not, end inner loop, else
+         L     7,0(2)          R7 = large value
+         L     8,0(3)          R8 = J value
+IF3      CR    7,8             J < large?
+         BC    B'1011',SKIP    Then large = J
+         LR    7,8             Large = J
+ENDIF3   LR    2,3             Large = J
+SKIP     LA    3,4(3)          Next entry in J
+         B     INWHILE         Repeat inner loop
+ENDIN    L     9,0(4)          9 = current entry in BEGIN
+         ST    7,0(4)          Switch
+         ST    9,0(2)          Switch
+         LA    4,4(4)          Next entry in BEGIN
+         B     OUTWHILE        Repeat outer loop
+ENDOUT   DS    0H              End outer loop
+* exit linkage *               
+         L     13,4(0,13)      Point R13 at caller's save area.           
+         LM    14,12,12(13)    Restore regs.
+         BR    14              Return.
+************************************************************
+         LTORG                     LIST SORT LITERALS
+SORTSAVE DS    18F
+************************************************************
+         END   MAIN 
+/*
+//FT05F001  DD  DSN=KC02314.SUMMER14.CSCI360.HW5DATA,DISP=SHR
+//FT06F001 DD SYSOUT=*
+//

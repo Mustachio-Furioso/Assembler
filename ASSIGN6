@@ -1,0 +1,552 @@
+//KC03NEBA JOB ,'JAQUELYNE SMITH',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+******************************* MAIN ********************************
+*********************************************************************
+* CSCI 360     ASSIGNMENT 6      SUMMER 2014      COPYRIGHT (C) 2014
+*                               
+* NAME:        EDGAR SIAS & JAQUELYNE SMITH
+* KID:         KC03NEB    & KC03NEE
+*                                   
+* FUNCTION:    This program program will read a file containing 
+*              information about clients: names, passwords, account 
+*              balances and ID numbers. The information will be 
+*              stored in a table.
+*
+* DUE DATE:    July 22, 2014
+*
+* LAST EDIT:   10:47pm 07.22.2014
+*
+* INPUT:       A file with an unknown number of records. Each record
+*              represents a single client of Famous Names, Inc.
+*
+* OUTPUT:      An entire table, a sorted table, and sorted tables
+*              that are multiples of given numbers.
+*
+* ENTRY CONDS: None.
+*
+* EXIT CONDS:  None.
+*
+* REGISTER USAGE:
+*
+*              1     Used by XDECI, parameter list
+*              2     @ of TABLE
+*              3     @ of ENDTABLE, @ of LAST ENTRY
+*              4     Current number from card
+*              5     Used for dividing/multiplying purposes, BUFFER
+*              7     Counter for nums on print line
+*              8     @ of print line
+*             11     Asterisk
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used to BALR to BUILD, PRINT, & SORT
+*             15     Base register   
+*
+* NOTES:      None.
+*********************************************************************
+MAIN     CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING MAIN,12               r       k
+         LA    14,MAINSAVE            y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+         TITLE 'EDGAR SIAS, CSCI 360, PROGRAM 6'
+*
+* Call external subroutines
+*
+         LA    R1,PARM
+         L     R15,=V(BUILD)
+         BALR  R14,R15            Branch to build
+***********************************************************
+         LA    R1,PARM1
+         L     R15,=V(PRINT)
+         BALR  R14,R15            Branch to print
+***********************************************************
+         LA    R1,PARM1
+         L     R15,=V(SORT)
+         BALR  R14,R15            Branch to sort
+***********************************************************
+         LA    R1,PARM2
+         L     R15,=V(PRINT)
+         BALR  R14,R15            Branch to print sorted
+***********************************************************
+         LA    R1,PARM3
+         L     R15,=V(TALLY)
+         BALR  R14,R15            Branch to tally
+***********************************************************
+         L     R13,4(,R13)        E
+         LM    R14,R12,12(13)      x
+         BR    R14                  i
+*                                    t Linkage
+*********************************************************************
+         LTORG
+*
+* Magically align your table on a 16-byte boundary.
+*
+*H2       DC    C'2'               Print header #2
+         ORG   MAIN+((*-MAIN+15)/16*16)
+*TABLE    DC    70F'-1'            Table storage
+TABLE    DC    840F'-1'            Table storage
+EOT      DC    A(TABLE)            @ of last entry
+BUFFER   DS    CL80
+STAR     DC    C'*'
+*
+*ENTRYNUM DS    F                  Number of entries
+ENTRYNUM DC    PL2'0'                  Number of entries
+*
+H1       DC    C'1'               Print header #1
+H2       DC    C'2'               Print header #2
+*
+MAINSAVE DS    18F
+***********************************************************
+* Parameters
+***********************************************************
+PARM     DC    A(TABLE,EOT,BUFFER,STAR,ENTRYNUM)
+PARM1    DC    A(TABLE,EOT,H1)
+PARM2    DC    A(TABLE,EOT,H2)
+PARM3    DC    A(TABLE,EOT,ENTRYNUM)
+****************************** BUILD ********************************
+*********************************************************************
+* BUILD Subroutine - Read the input file & build/load the table;
+*                    store the @ of the last entry in a fullword
+*                    passed in as a parameter. Store the number of 
+*                    entries in a numerical field passd in as a 
+*                    parameter.
+* REGISTER USAGE:
+*
+*              1     Used by XDECI, parameter list
+*              2     @ of TABLE
+*              3     @ of ENDTABLE, @ of LAST ENTRY
+*              4     @ of BUFFER
+*              5     EOT 
+*              7     Counter for number of clients (lines)
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used by linkage
+*             15     Used by linkage  
+*
+* NOTES:      None.
+*********************************************************************
+BUILD    CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING BUILD,12              r       k
+         LA    14,BSAVE               y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+         L     R2,0(R1)           R2 = @ of TABLE
+         L     R3,4(R1)           R3 = @ of ENDTABLE
+*
+         L     R4,8(R1)           R4 = Buffer; CARD now = 0(R4)
+         L     R7,16(R1)          R7 = number of entries/clients
+*
+         L     R5,0(,R3)          Load EOT into register 5
+*
+         XREAD 0(,R4),80          Priming read
+*
+BREAD    BC    B'0100',BEND       Unsuccessful read? Go to end
+         CR    5,3
+         BC    B'1010',BEND
+         MVC   0(10,R5),0(R4)     Last name (characters)
+         MVC   10(10,R5),12(R4)   First name (char's)
+         MVC   20(9,R5),24(R4)    ID number (char's)
+         MVC   29(8,R5),35(R4)    Password (char's)
+         PACK  37(5,R5),45(8,R4)  Expiration date (YYYY,MM,DD)
+         PACK  42(5,R5),55(7,R4)  Balance (numeric)
+         MVC   47(1,R5),62(R4)    Sign of the balance (+/-)
+         CLI   47(R5),C'-'        Check if sign is -
+         BC    B'0111',POS        If positive, go there
+         MP    42(5,R5),=P'-1'    Multiply balance by -1
+POS      DS    0H
+*
+         LA    R5,48(,R5)
+*
+         AP    0(2,R7),=P'1'
+*
+         XREAD 0(,R4),80          Read next record
+         B     BREAD              Continue!
+BEND     B     BDONE
+BDONE    ST    R5,0(,R3)          Save the EOT @
+*
+         L     R13,4(,R13)        E
+         LM    R14,R12,12(13)      x
+         BR    R14                  i
+*********************************************************************                              t Linkage
+         LTORG
+*
+BSAVE    DS    18F                Save registers here
+*********************************************************************
+***************************** PRINT *********************************
+* PRINT  Subroutine - Print the contents of the table, using 
+*                     appropriate page and column headings. The page
+*                     heading should include a page number.
+* REGISTER USAGE:
+*
+*              1     Used by EDMK, parameter list
+*              2     @ of TABLE
+*              3     @ of ENDTABLE, @ of LAST ENTRY
+*              4     @ of BUFFER
+*              5     EOT 
+*              7     Counter for number of clients (lines)
+*              8     Caption character
+*             11     Used as counter for amount of lines
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used by linkage
+*             15     Used by linkage  
+*
+* NOTES:      None.
+*********************************************************************
+PRINT    CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING PRINT,12              r       k
+         LA    14,PSAVE               y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+         L     R2,0(R1)           R2 = @ of TABLE
+         L     R3,4(R1)           R3 = @ of ENDTABLE
+         L     R3,0(R3)           R3 = value of ENDTABLE (rids -1)
+*
+         L     R8,8(R1)           R8 = @ of caption character
+*
+         SR    R11,R11            R11 = counter for lines
+*
+         CLI   0(R8),C'1'         Is it sorted?
+         BC    B'0111',SKIP1      If not, skip ahead, else 
+         MVC   PAGE1(4),=X'4020202020' Prepare header 
+         ED    PAGE1(4),COUNTER         for print
+         XPRNT TITL1,TITL1END-TITL1    Print header
+         B     RESUME1            Then print rest of table
+SKIP1    MVC   PAGE2(4),=X'4020202020' Prepare sorted header
+         ED    PAGE2(4),COUNTER         for printing
+         XPRNT TITL3,TITL3END-TITL3  Print sorted header
+RESUME1  XPRNT TITL2,TITL2END-TITL2  Print titles
+PLOOP    CR    R2,R3              Are we at end of table?
+         BC    B'1010',ENDPLP1    Yes, go to end!
+*
+         C     R11,=F'24'         Check if we've printed 24 lines
+         BNE   CONTINUE           If so, continue as usual
+         SR    R11,R11            else zero out line counter
+         AP    COUNTER(2),=P'1'   increment page counter
+         CLI   0(R8),C'1'         Is it sorted?
+         BNE   SKIP2              If not, skip ahead, else 
+         MVC   PAGE1(4),=X'4020202020' Prepare header 
+         ED    PAGE1(4),COUNTER         for print
+         XPRNT TITL1,TITL1END-TITL1  Print unsorted header
+         B     RESUME2            Resume printing table
+SKIP2    MVC   PAGE2(4),=X'4020202020' Prepare sorted header
+         ED    PAGE2(4),COUNTER         for printing
+         XPRNT TITL3,TITL3END-TITL3  Print sorted header
+RESUME2  XPRNT TITL2,TITL2END-TITL2  Print titles
+*
+CONTINUE MVC   LASTNAME(10),0(R2)  Prime last name for printing  
+*
+         MVC   FRSTNAME(10),10(R2) Prime first name for printing
+*
+         MVC   BALANCE(17),=X'4040206B2020206B2021204B202040C3D9' 
+*                                $              $ 0 . 0 0
+*                              Bal pattern
+         LA    1,BALANCE+10    Prepare BALANCE for printing
+         EDMK  BALANCE(17),42(R2)   Prime balance value for printing
+         BCTR  1,0                  Shift place leftwards
+         MVI   0(1),C'$'            Add '$' sign
+*
+         MVC   PASSWORD(8),29(R2)  Prime password for printing
+*
+*
+         MVC   EXPDATE(12),=X'402020202020612020612020' Pattern for exp
+         ED    EXPDATE(12),37(R2)        Print exp date value
+*
+         MVC   IDNUMBER(9),20(R2)  Prime ID number for printing
+*
+         XPRNT PRTLIN2,PRT2END-PRTLIN2   Print values
+         LA    R2,48(,R2)                Next table record
+*
+         A     R11,=F'1'                 Increment line counter
+*
+         B     PLOOP                     Repeat loop
+ENDPLP1  DS    0H                        End loop
+         AP    COUNTER(2),=P'1' Increment page counter for next Print
+*
+*  EXIT LINKAGE
+         L     R13,4(,R13)        E
+         LM    R14,R12,12(R13)     x
+         BR    R14                  i
+*                                    t Linkage
+*********************************************************************
+         LTORG
+*
+PSAVE    DS    18F                Save registers here
+*
+COUNTER  DC    PL2'1'
+PRTLIN2  DC    C'0'
+         DC    CL9' '
+FRSTNAME DS    CL10' '
+         DC    CL9' '
+LASTNAME DS    CL10' '
+BALANCE  DS    CL17' '
+         DC    CL8' '
+PASSWORD DS    CL8' '
+         DC    CL8' '
+EXPDATE  DS    CL12' '
+         DC    CL7' '
+IDNUMBER DS    CL9' '
+PRT2END  DC    C' '               Or, try 'DS 0C'
+*
+PESAVE   DS    18F                Save registers here
+*PRTLIN2  DC    C'0'               Carriage control
+PLINE    DC    5CL12' '           Num of integers on print line
+FIVE     DC    5CL12' '           Num of integers on print line
+*PRT2END  DC    C' '
+TITL1    DC    CL48'1                                              '
+         DC    CL28'Famous names -- Client List'
+         DC    CL36' '
+         DC    CL4'PAGE'
+PAGE1    DS    4C
+TITL1END DS    0C
+*
+TITL2    DC    CL46'-         First Name         Last Name    '
+         DC    CL48'Balance           Password          Exp. Date  '
+         DC    CL15'     ID Number'
+TITL2END DS    0C
+*
+TITL3    DC    CL46'1                                            '
+         DC    CL32'Client List Sorted by Last Name'
+         DC    CL36' '
+         DC    CL4'PAGE'
+PAGE2    DS    4C
+TITL3END DS    0C
+*
+TITL4    DC    CL48'-         First Name         Last Name         '
+         DC    CL48'Balance           Password          Exp. Date  '
+         DC    CL10'ID Number'
+TITL4END DS    0C
+*********************************************************************
+******************************* SORT ********************************
+* SORT Subroutine - Sorts the table in ascending order with
+*                   selection sort
+* REGISTER USAGE:
+*
+*              1     Used by EDMK, parameter list
+*              2     @ of TABLE
+*              3     @ of ENDTABLE, @ of LAST ENTRY
+*              4     @ of TABLE
+*              5     Large
+*              6     J 
+*             11     Used as counter for amount of lines
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used by linkage
+*             15     Used by linkage  
+*
+* NOTES:      None.
+*********************************************************************
+SORT     CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING SORT,12               r       k
+         LA    14,SSAVE               y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+         L     R2,0(R1)           R2 = @ of TABLE
+         L     R3,4(R1)           R3 = @ of ENDTABLE
+*
+         LR    R4,R2              Load @ of Table; Begin = 0
+SLOOP1   C     R4,0(,R3)          Do while (BEGIN > END)
+         BC    B'1011',ENDS1
+         LR    R5,R4              LARGE = BEGIN
+         LA    R6,48(,R4)          J = BEGIN; Increment J
+SLOOP2   C     R6,0(,R3)          Do while (BEGIN > END)
+         BC    B'1011',ENDS2
+         MVC   MVCR7(10),0(R6)          LARGE = BEGIN
+         CLC   MVCR7(10),0(R5)          Check if BEGIN > END
+         BC    B'1011',ENDS3
+         LR    R5,R6              J = BEGIN
+ENDS3    LA    R6,48(,R6)          Increment J
+         B     SLOOP2             Continue!
+ENDS2    MVC   MVCR8(48),0(R4)          Swap
+         MVC   STEMP(48),MVCR8            Entry
+         MVC   MVCR8(48),0(R5)            (BEGIN)
+         MVC   0(48,R4),MVCR8               with
+         MVC   MVCR8(48),STEMP                 Entry
+         MVC   0(48,R5),MVCR8                (LARGE)
+         LA    R4,48(,R4)          Increment BEGIN
+         B     SLOOP1             Continue!
+ENDS1    DS    0H
+*
+         L     R13,4(,R13)        E
+         LM    R14,R12,12(13)      x
+         BR    R14                  i
+*                                    t Linkage
+*********************************************************************
+         LTORG
+*
+SSAVE    DS    18F                Save registers here
+STEMP    DS    48C
+MVCR7    DS    10C
+MVCR8    DS    48C
+*********************************************************************
+****************************** TALLY ********************************
+* TALLY Subroutine - Compute and print the number of clients, the sum
+*                    of all account balances, the average account 
+*                    balance, the largest account balance and the 
+*                    # of negative account balances. These can be 
+*                    added at the end of the last page.
+* REGISTER USAGE:
+*
+*              1     Used by EDMK, parameter list
+*              3     @ of TABLE
+*              4     @ of EOT
+*              5     Number of clients
+*             11     Used as counter for amount of lines
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used by linkage
+*             15     Used by linkage  
+*
+* NOTES:      None.
+*********************************************************************
+TALLY    CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING TALLY,12              r       k
+         LA    14,TSAVE               y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+* Compute the number of clients
+*
+         L     R3,0(R1)          R3 = TABLE
+         L     R4,4(R1)          R4 = EOT
+         L     R5,8(R1)          R5 = number of entries/clients
+***start
+GOTAL    C     R3,0(R4)          End of table?
+         BC    B'1010',ENDTAL    Then exit loop, else
+*largest
+         CP    42(5,R3),TLARGE(5) Is entry largest?
+         BC    B'1010',CHANGE     then change holder to entry
+         B     NOCHANGE           else dont do anything
+CHANGE   MVC   TLARGE(5),42(R3)   holder = current entry
+NOCHANGE DS    0H                 
+*negative count                  
+         CP    42(5,R3),=P'0'     Is entry positive?
+         BC    B'1010',POS1       then don't do anything
+         AP    NEGATIVE(2),=P'1'  increment negative counter
+         B     ENDCOUNT           Go to end of count 
+POS1     DS    0H                 
+ENDCOUNT DS    0H                 End of count
+*neg count
+         AP    TOTSUM(8),42(5,R3) Add current entry to the total sum
+         LA    R3,48(R3)          Go to next table record
+         B     GOTAL              Repeat loop
+ENDTAL   DS    0H                 End loop
+********* Calculate average balance ********* 
+         MVC   AVERAGE(8),TOTSUM  
+         LA    1,AVERAGE+18
+         DP    AVERAGE(8),0(2,R5)
+********* Print number of clients ********* 
+         MVC   CLIENTS(4),=X'40202120'
+         ED    CLIENTS(4),0(R5)
+         XPRNT TPLINE1,TPLEND1-TPLINE1
+********* Print total sum of balances ********* 
+         MVC   TPSUM(21),=X'4040202020206B2020206B2020206B2021204B2020'
+         EDMK  TPSUM(21),TOTSUM 
+         BCTR  1,0
+         MVI   0(1),C'$'
+         XPRNT TPLINE2,TPLEND2-TPLINE2 
+********* Print average balance ********* 
+         MVC   AVG(16),=X'40402020206B2020206B2021204B2020'
+         EDMK  AVG(16),AVERAGE
+         BCTR  1,0
+         MVI   0(1),C'$'
+         XPRNT TPLINE3,TPLEND3-TPLINE3
+********* Print largest balance ********* 
+         MVC   LRG(14),=X'4040206B2020206B2021204B2020'
+         EDMK  LRG(14),TLARGE
+         BCTR  1,0
+         MVI   0(1),C'$'
+         XPRNT TPLINE4,TPLEND4-TPLINE4
+********* Print negative count ********* 
+         MVC   NEGA(4),=X'40202120'
+         ED    NEGA(4),NEGATIVE
+         XPRNT TPLINE5,TPLEND5-TPLINE5
+***end
+         L     R13,4(,R13)        E
+         LM    R14,R12,12(13)      x
+         BR    R14                  i
+*                                    t Linkage
+*********************************************************************
+         LTORG
+TSAVE    DS    18F                Save registers here
+*
+TLARGE   DC    PL5'0' 
+NEGATIVE DC    PL2'0'            
+TOTSUM   DC    PL8'0'
+AVERAGE  DC    PL8'0'
+*
+TPLINE1  DC    C'-'
+         DC    CL44'                                 Number of '
+         DC    CL10' clients:'
+         DC    CL14' '
+CLIENTS  DS    CL4
+TPLEND1  DS    0C
+*
+TPLINE2  DC    C'0'
+         DC    CL49'                                 Sum of account '
+         DC    CL10'balances:'
+TPSUM    DS    CL21
+TPLEND2  DS    0C
+*
+TPLINE3  DC    C'0'
+         DC    CL49'                                 Average account'
+         DC    CL12' balance:  '
+AVG      DS    CL16
+TPLEND3  DS    0C
+*
+TPLINE4  DC    C'0'
+         DC    CL49'                                 Largest account'
+         DC    CL16' balance:      '
+LRG      DS    CL14
+TPLEND4  DS    0C
+TPLINE5  DC    C'0'
+         DC    CL44'                                 Number of '
+         DC    CL24'negative balances:     '
+NEGA     DS    CL4
+TPLEND5  DS    0C
+*********************************************************************
+**************************** EQUATES ********************************
+R0       EQU   0
+R1       EQU   1
+R2       EQU   2
+R3       EQU   3
+R4       EQU   4
+R5       EQU   5
+R6       EQU   6
+R7       EQU   7
+R8       EQU   8
+R9       EQU   9
+R10      EQU   10
+R11      EQU   11
+R12      EQU   12
+R13      EQU   13
+R14      EQU   14
+R15      EQU   15
+*********************************************************************
+         END   MAIN
+/*
+//FT05F001    DD DSN=KC02314.SUMMER14.CSCI360.HW6DATA,DISP=SHR
+//FT06F001    DD SYSOUT=*
+//

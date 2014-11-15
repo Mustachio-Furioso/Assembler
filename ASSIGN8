@@ -1,0 +1,429 @@
+//KC03NEBA JOB ,'EDGAR SIAS',MSGCLASS=H
+//STEP1 EXEC PGM=ASSIST
+//STEPLIB DD DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT DD SYSOUT=*
+//SYSIN DD *
+******************************* MAIN ********************************
+*********************************************************************
+* CSCI 360     ASSIGNMENT 8      SUMMER 2014      COPYRIGHT (C) 2014
+*                               
+* NAME:        EDGAR SIAS & JAQUELYNE SMITH
+* KID:         KC03NEB    & KC03NEE 
+*                                   
+* FUNCTION:    This program program deals with data about players in 
+*              the Greek Myth game. You will write a program that 
+*              will read the file. The data will be processed a 
+*              little and put in a table. You will then XDUMP part of
+*              the table. After that, you should print out the table 
+*              contents in a report.
+*
+* DUE DATE:    August 1, 2014
+*
+* LAST EDIT:   11:30pm 08.1.2014
+*
+* INPUT:       A file with an unknown number of records. Each record
+*              represents a single player from a Greek game.
+*
+* OUTPUT:      Part of an XDUMPed table, then the values of the whole
+*              table.
+*
+* ENTRY CONDS: None.
+*
+* EXIT CONDS:  None.
+*
+* REGISTER USAGE:
+*
+*              1     Used by XDECI, parameter list
+*              2     @ of TABLE
+*              3     @ of ENDTABLE, @ of LAST ENTRY
+*              4     Current number from card
+*              5     Temporary storage for ID
+*              6     Temporary storage for year and date
+*              7     Temporary storage for day
+*              8     Temporary storage for month
+*             10     Counter for nums on print line
+*             11     Asterisk
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used to BALR to BUILD & PRINT
+*             15     Base register    
+*
+* NOTES:      None.
+*********************************************************************
+*                       Dummy Section
+*********************************************************************
+$TABLE   DSECT
+$LNAME   DS    10C
+$FNAME   DS    10C
+$DATE    DS    2B
+$PASSWD  DS    8C
+$ID      DS    4B
+*********************************************************************
+MAIN     CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING MAIN,12               r       k
+         LA    14,MAINSAVE            y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+         TITLE 'EDGAR SIAS, CSCI 360, PROGRAM 8'
+*
+* Call external subroutines
+*
+         LA    R1,PARM
+         L     R15,=V(BUILD)
+         BALR  R14,R15            Branch to build
+*********************************************************************
+* Dump first 10 entries
+*********************************************************************
+         XDUMP TABLE,340
+*********************************************************************
+         LA    R1,PARM
+         L     R15,=V(PRINT)
+         BALR  R14,R15            Branch to print
+*********************************************************************
+         L     R13,4(,R13)        E
+         LM    R14,R12,12(13)      x
+         BR    R14                  i
+*                                    t Linkage
+*********************************************************************
+         LTORG
+*
+MAINSAVE DS    18F
+         ORG   MAIN+(*-MAIN+31)/32*32
+TABLE    DC    2720C' '           Table storage
+EOT      DC    A(TABLE)           @ of last entry
+*
+*MAINSAVE DS    18F
+*********************************************************************
+*                          Parameter
+*********************************************************************
+PARM     DC    A(TABLE,EOT)
+****************************** BUILD ********************************
+*********************************************************************
+* BUILD Subroutine - Read the input file & build/load the table;
+*                    store the @ of the last entry in a fullword
+*                    passed in as a parameter. Store the number of 
+*                    entries in a numerical field passd in as a 
+*                    parameter.
+* REGISTER USAGE:
+*
+*              1     Used by XDECI, parameter list
+*              2     @ of TABLE
+*              3     @ of ENDTABLE, @ of LAST ENTRY
+*              4     @ of BUFFER
+*              5     EOT 
+*              7     Counter for number of clients (lines)
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used by linkage
+*             15     Used by linkage  
+*
+* NOTES:      None.
+*********************************************************************
+BUILD    CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING BUILD,12              r       k
+         LA    14,BSAVE               y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+         L     R2,0(R1)           R2 = @ of TABLE
+         L     R3,4(R1)           R3 = @ of ENDTABLE
+         USING $TABLE,R2          Load dsect
+*
+BREAD    XREAD BUFFER,80          Priming read
+         BC    B'0100',BEND       EOF?
+         LA    R4,BUFFER          R3 = BUFFER address
+*
+* Grabbing name
+*
+         MVC   $LNAME(10),0(R4)     Place Last Name into table
+         TR    $LNAME(1),TOUPPER    Capitalize first letter of LNAME
+         TR    $LNAME+1(9),TOLOWER  Uncapitalize rest of FNAME
+         MVC   $FNAME(10),12(R4)    Place First Name into table
+         TR    $FNAME(1),TOUPPER    Capitalize first letter of FNAME
+         TR    $FNAME+1(9),TOLOWER  Uncapitalize rest of FNAME
+*
+* Grabbing Password
+*
+         MVC   $PASSWD(8),24(R4)    Grab password
+*
+* Grabbing ID
+*
+         PACK  TEMPID(8),34(9,R4)   Place and pack ID into temp ID
+         CVB   R5,TEMPID            R5 = Convert temp ID to binary
+         STCM  R5,B'1111',$ID       Store temp ID into table
+*
+         XC    $PASSWD(8),R5        XOR, encrypt the password
+*
+*********************************************************************
+* 1. PACK each number (month, day, and year) into a temp field and 
+*   convert to binary using CVB. You should now have each number in a 
+*   different register.
+*
+* 2. Subtract =F'1920' from the year.
+*
+* 3. Shift the month left by 12 bits.
+*
+* 4. Shift the day left by by 7 bits.
+*
+* 5. OR the three registers together to combine the three numbers in 
+*    a single register. This will take two instructions.
+*********************************************************************
+*
+* Grab month
+*
+         PACK  TEMPMO(8),51(2,R4)  Place and pack month into temp mo
+         CVB   R8,TEMPMO           R8 = Convert temp mo to binary
+         SLL   R8,12               Shift month left by 12 bits
+*
+* Grab Day
+*
+         PACK  TEMPDAY(8),49(2,R4)  Place and pack day into temp day
+         CVB   R7,TEMPDAY           R7 = Convert temp day to binary
+         SLL   R7,7                 Shift day left by 7 bits
+*        
+* Grabbing Year
+*        
+         PACK  TEMPYEAR(8),45(4,R4) Place and pack date into temp yr
+         SP    TEMPYEAR(8),=P'1920' Subtract year from 1920
+         CVB   R6,TEMPYEAR          Convert to binary & put in R5
+*
+* Combine the registers in 2 steps: OR  R1,R2 (stores into R1)
+*
+         OR    R6,R7                R6 now contains Year+Day
+         OR    R6,R8                R6 now contains Year+Day+Month
+*
+* Now, save the entire date in the table
+*
+         STCM  R6,B'0011',$DATE     $DATE contains 2 bytes of date
+*
+         LA    R2,34(R2)          Next table entry
+         B     BREAD              Continue loop! WOO!
+BEND     DS    0H
+         ST    R2,0(R3)           Store EOT
+         DROP  R2                 Drop register used for dsect
+*
+         L     R13,4(,R13)        E
+         LM    R14,R12,12(13)      x
+         BR    R14                  i
+*                                    t Linkage
+*********************************************************************
+*                         Build Storage
+*********************************************************************
+         LTORG
+*
+BSAVE    DS    18F                Save registers here
+*
+TOUPPER  DC    XL16'000102030405060708090A0B0C0D0E0F'
+         DC    XL16'101112131415161718191A1B1C1D1E1F'
+         DC    XL16'202122232425262728292A2B2C2D2E2F'
+         DC    XL16'303132333435363738393A3B3C3D3E3F'
+         DC    XL16'404142434445464748494A4B4C4D4E4F'
+         DC    XL16'606162636465666768696A6B6C6D6E6F'
+         DC    XL16'505152535455565758595A5B5C5D5E5F'
+         DC    XL16'707172737475767778797A7B7C7D7E7F'
+         DC    XL16'80C1C2C3C4C5C6C7C8C9CACBCCCDCECF'
+         DC    XL16'90D1D2D3D4D5D6D7D8D9DADBDCDDDEDF'
+         DC    XL16'A0A1E2E3E4E5E6E7E8E9EAEBECEDEEEF'
+         DC    XL16'B0B1B2B3B4B5B6B7B8B9BABBBCBDBEBF'
+         DC    XL16'C0C1C2C3C4C5C6C7C8C9CACBCCCDCECF'
+         DC    XL16'D0D1D2D3D4D5D6D7D8D9DADBDCDDDEDF'
+         DC    XL16'E0E1E2E3E4E5E6E7E8E9EAEBECEDEEEF'
+         DC    XL16'F0F1F2F3F4F5F6F7F8F9FAFBFCFDFEFF'
+*
+TOLOWER  DC    XL16'000102030405060708090A0B0C0D0E0F'
+         DC    XL16'101112131415161718191A1B1C1D1E1F'
+         DC    XL16'202122232425262728292A2B2C2D2E2F'
+         DC    XL16'303132333435363738393A3B3C3D3E3F'
+         DC    XL16'404142434445464748494A4B4C4D4E4F'
+         DC    XL16'606162636465666768696A6B6C6D6E6F'
+         DC    XL16'505152535455565758595A5B5C5D5E5F'
+         DC    XL16'707172737475767778797A7B7C7D7E7F'
+         DC    XL16'808182838485868788898A8B8C8D8E8F'
+         DC    XL16'909192939495969798999A9B9C9D9E9F'
+         DC    XL16'A0A1A2A3A4A5A6A7A8A9AAABACADAEAF'
+         DC    XL16'B0B1B2B3B4B5B6B7B8B9BABBBCBDBEBF'
+         DC    XL16'C08182838485868788898A8B8C8D8E8F'
+         DC    XL16'D09192939495969798999A9B9C9D9E9F'
+         DC    XL16'E0E1A2A3A4A5A6A7A8A9AAABACADAEAF'
+         DC    XL16'F0F1F2F3F4F5F6F7F8F9FAFBFCFDFEFF'
+*
+         DS    0D
+HOLDER   DS    4B
+TEMPID   DS    D
+TEMPDAY  DS    D
+TEMPDATE DS    D
+TEMPMO   DS    D
+TEMPPASS DS    8C
+TEMPYEAR DS    PL8
+BUFFER   DC    80C' '             Input record buffer
+*********************************************************************
+*                             PRINT
+*********************************************************************
+* PRINT  Subroutine - Print the contents of the table, using 
+*                     appropriate page and column headings. The page
+*                     heading should include a page number.
+* REGISTER USAGE:
+*
+*              1     Used by EDMK, parameter list
+*              2     @ of TABLE
+*              3     @ of ENDTABLE, @ of LAST ENTRY
+*              4     @ of BUFFER
+*              5     EOT 
+*              7     Counter for number of clients (lines)
+*              8     Caption character
+*             11     Used as counter for amount of lines
+*             12     Used by linkage 
+*             13     Used by linkage
+*             14     Used by linkage
+*             15     Used by linkage  
+*
+* NOTES:      None.
+*********************************************************************
+PRINT    CSECT                    E       L
+         STM   14,12,12(13)        n       i
+         LR    12,15                t       n
+         USING PRINT,12              r       k
+         LA    14,PSAVE               y       a
+         ST    13,4(,14)                       g
+         ST    14,8(,13)                        e
+         LR    13,14
+*
+* Print headers
+*
+         XPRNT PHEAD1,PHEND1-PHEAD1
+         XPRNT PHEAD2,PHEND2-PHEAD2
+*
+         L     R2,0(R1)             R2 = @ of TABLE
+         L     R3,4(R1)             R3 = @ of ENDTABLE
+         USING $TABLE,R2            Load dsect
+*
+         SR    R10,R10
+PLOOP1   C     R2,0(,R3)            While not EOF
+         BNL   PLEND1               Else go to end
+*
+         C     R10,=F'40'           Printed 40 lines?
+         BNE   SKIP                 Nope, skip! 
+         XPRNT PHEAD2,PHEND2-PHEAD2 Print header again 
+         SR    R10,R10              Zero out line count 
+SKIP     MVC   PLNAME(10),$LNAME    Grab last name from table
+         MVC   PFNAME(10),$FNAME    Grab last name from table
+         ICM   R5,B'1111',$ID       R5 = ID   
+         MVC   PPASSWD(8),$PASSWD   Grab password
+         XC    PPASSWD(8),R5        Encrypt password with ID: XOR
+*
+* Print ID
+*
+         ICM   R5,B'1111',$ID        Grab ID
+         CVD   R5,IDHOLD             Convert to decimal
+         MVC   PID(12),=X'402021202020202020202020' Pattern
+         ED    PID(12),IDHOLD+2      Edit with pattern 
+*
+* Prep date for printing
+*
+         SR    R6,R6              Zero out R6
+         ICM   R6,B'1100',$DATE   R6 = Date
+         ST    R6,DATEHOLD        Store Date
+** print year **MMMMM DDDD DYYY YYYY
+         SLL   R6,9               Shift to leave only the year
+         SRL   R6,1               Shift again to get year number
+         SRL   R6,24              Shift to normal position*
+         A     R6,=F'1920'        Subtract year from 1920
+         CVD   R6,YRHOLD          Convert year to packed decimal
+         MVC   PYEAR(6),=XL6'402120202020' pattern  
+         ED    PYEAR(6),YRHOLD+5  Edit with pattern
+*** print month
+         L     R6,DATEHOLD         R6 = entire date 
+         SRL   R6,28               Shift again to get year number
+         CVD   R6,MNTHHOLD         Convert year to packed decimal
+         MVC   PMONTH(4),=X'61212020' Pattern
+         ED    PMONTH(4),MNTHHOLD+6   Edit with pattern
+         MVC   PMONTH(3),PMONTH+1     Move character by one
+         MVI   PMONTH+3,C'/'          Hard code slash for month  
+*
+*** print day
+         L     R6,DATEHOLD        R6 = entire date 
+         LR    R7,R6              R7 = stored date 
+         SLL   R6,4               Shift to leave only the year 
+         SRL   R6,27              Shift right to get rid of year 
+         CVD   R6,DAYHOLD         DAYHOLD = converted to decimal
+         MVC   PDAY(4),=X'61212020' Pattern
+         ED    PDAY(4),DAYHOLD+6    Edit with pattern
+         MVC   PDAY(2),PDAY+2       Adjust character
+         MVC   PDAY+2(2),=C'  '     Hardcode some space
+*
+         XPRNT PRNTLINE,PRNTEND-PRNTLINE
+*
+         A     R10,=F'1'
+         LA    R2,34(,R2)           Next record
+         B     PLOOP1               Continue printing!
+*
+PLEND1   DS    0H                 Time for sleep!
+*
+         L     R13,4(,R13)        E
+         LM    R14,R12,12(R13)     x
+         BR    R14                  i
+*                                    t Linkage
+*********************************************************************
+*                       Print Storage
+*********************************************************************
+         LTORG
+*
+PSAVE    DS    18F                Save registers here
+*
+HHOLD    DS    4B                 Temp storage for date
+YRHOLD   DS    D                  Temp storage for year
+MNTHHOLD DS    D                  Temp storage for month
+DAYHOLD  DS    D                  Temp storage for day
+         DS    0D                 Make sure DATEHOLD is on doubleword
+DATEHOLD DS    2B                 More temp storage for date
+IDHOLD   DS    D                  Temp storage for ID
+PRNTLINE DC    C' '               Carriage control
+PFNAME   DC    CL10' '            First name
+         DC    CL5' '
+PLNAME   DC    CL10' '            Last name
+         DC    CL5' '
+PPASSWD  DC    CL9' '             Password
+         DC    CL1' '
+PID      DC    CL16' '            ID
+PYEAR    DC    CL5' '             Year
+         DC    CL1' '
+PMONTH   DC    CL4' '             Month
+PDAY     DC    CL4' '             Day
+PRNTEND  DS    0C
+*
+PHEAD1   DC    CL47'1                       Greek Myth Player Data'
+PHEND1   DS    0C
+PHEAD2   DC    CL48'-First Name     Last Name      Password     ID '
+         DC    CL23'Number    Renewal Date'
+PHEND2   DS    0C
+*********************************************************************
+**************************** EQUATES ********************************
+R0       EQU   0
+R1       EQU   1
+R2       EQU   2
+R3       EQU   3
+R4       EQU   4
+R5       EQU   5
+R6       EQU   6
+R7       EQU   7
+R8       EQU   8
+R9       EQU   9
+R10      EQU   10
+R11      EQU   11
+R12      EQU   12
+R13      EQU   13
+R14      EQU   14
+R15      EQU   15
+*********************************************************************
+         END   MAIN
+/*
+//FT05F001    DD DSN=KC02314.SUMMER14.CSCI360.HW8DATA,DISP=SHR
+//FT06F001    DD SYSOUT=*
+//
