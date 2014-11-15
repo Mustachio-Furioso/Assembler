@@ -1,0 +1,74 @@
+//KC03NEBA JOB ,'EDGAR SIAS',MSGCLASS=H
+//STEP1    EXEC  PGM=ASSIST
+//STEPLIB    DD  DSN=KC02293.ASSIST.LOADLIB,DISP=SHR
+//SYSPRINT   DD  SYSOUT=*
+//SYSIN      DD  *
+************************************************************
+*
+*  Program:     ASSIGN2
+*  Programmer:  EDGAR SIAS
+*
+*  Register usage:
+*     4    Sum of the results
+*     5    Counter
+*     6    Holds value of x
+*     7    Holds value of y
+*     8    Holds value of z
+*     9    Holds result of x+y-z
+*
+************************************************************
+MAIN     CSECT
+         USING MAIN,15             BEGIN PROGRAM
+         SR    4,4                 SET TOTAL RESULT = 0
+         SR    5,5                 SET COUNTER = 0
+         SR    9,9                 SET CURRENT RESULT = 0
+TOPLOOP  XREAD CARD,80             READ A LINE
+         BC    B'0100',ENDLOOP     IF END OF LINE, EXIT LOOP
+         XDECI 6,CARD              FIND FIRST ITEM IN LINE
+         XDECO 6,XVAL              PREPARE FIRST ITEM FOR PRINTING
+         XDECI 7,0(1)              FIND SECOND ITEM IN LINE
+         XDECO 7,YVAL              PREPARE SECOND ITEM FOR PRINTING
+         XDECI 8,0(1)              FIND THIRD ITEM IN LINE
+         XDECO 8,ZVAL              PREPARE THIRD ITEM FOR PRINTING
+         LR    9,6                 LOAD FROM R6 (VALX) TO R9
+         AR    9,7                 ADD R7 (VALY) TO R9 (VALX)
+         SR    9,8                 SUBTRACT R9 (VALX+VALY) BY R8 (VALZ)
+         XDECO 9,RESULT            PREPARE RESULT FOR PRINTING
+         XPRNT OUTLINE,70          PRINT ITEMS
+         A     5,=F'1'             INCREMENT COUNTER
+         AR    4,9                 ADD CURRENT RESULT TO TOTAL RESULT
+         BC    B'1111',TOPLOOP     REPEAT LOOP
+ENDLOOP  XDECO 5,COUNTER           PREPARE NUMBER OF LINES FOR PRINTING
+         XDECO 4,SUM               PREPARE TOTAL RESULT FOR PRINTING
+         XPRNT OUTLINE2,57         PRINT THESE TWO ITEMS
+QUIT     BR    14                  END PROGRAM
+************************************************************
+CARD     DS    80C                 INPUT RECORD
+OUTLINE  DC    C'0'                OUTPUT LINE. DOUBLE SPACED
+         DC    CL4'x = '           PREPARE LINE BEFORE XVAL
+XVAL     DC    CL12' '             PREPARE SPACE FOR XVAL
+         DC    CL4' y = '          PREPARE LINE BEFORE YVAL
+YVAL     DC    CL12' '             PREPARE SPACE FOR YVAL
+         DC    CL4' z = '          PREPARE LINE BEFORE ZVAL
+ZVAL     DC    CL12' '             PREPARE SPACE FOR ZVAL
+         DC    CL9' result = '     PREPARE LINE BEFORE RESULT
+RESULT   DC    CL12' '             PREPARE SPACE FOR RESULT
+OUTLINE2 DC    C'0'                SECOND OUTPUT LINE, DOUBLE SPACED
+         DC    CL14'total lines: ' PREPARE LINE BEFORE TOTAL LINES
+COUNTER  DC    CL12' '             PREPARE SPACE FOR TOTAL LINES
+         DC    CL18'   sum of results: ' PREPARE LINE BEFORE TOTAL SUM
+SUM      DC    CL12' '             PREPARE SPACE FOR TOTAL SUM
+         END MAIN                  END PROGRAM
+/*
+//FT05F001   DD  *
+163   529  280
+436   839  571
+051   843  947
+190   057  275
+299   667  419
+818   361  655
+475   048  111
+/*
+//FT06F001   DD SYSOUT=*
+//
+
